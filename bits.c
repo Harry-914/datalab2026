@@ -66,7 +66,28 @@ int samesign(int x, int y) {
  *   Difficulty: 4
  */
 int logtwo(int v) {
-    return 2;
+    int result = 0, shift;
+
+    shift = (v > 0xFFFF) << 4;
+    v = v >> shift;
+    result |= shift;
+
+
+    shift = (v > 0xFF) << 3;
+    v = v >> shift;
+    result |= shift;
+    
+    shift = (v > 0xF) << 2;
+    v = v >> shift;
+    result |= shift;
+
+    shift = (v > 0x3) << 1;
+    v = v >> shift;
+    result |= shift;
+
+    result |= v > 0x1;
+
+    return result;
 }
 
 /*
@@ -79,7 +100,19 @@ int logtwo(int v) {
  *    Difficulty: 2
  */
 int byteSwap(int x, int n, int m) {
-    return 2;
+    int ns = n << 3; // 
+    int ms = m << 3;
+
+    int nb = (x >> ns) & 0xFF; //0x56
+    int mb = (x >> ms) & 0xFF; //0x12
+
+    int tmp = (nb <<ms)|(mb << ns); //0x56001200 x=0x12345678
+
+    int nb2 = ~(0xFF << ns); //0xFFFF00FF 
+    int mb2 = ~(0xFF << ms); //0x00FFFFFF
+    int bit = nb2 & mb2; //0x00FF00FF
+
+    return tmp|(x&bit);
 }
 
 /*
@@ -90,8 +123,17 @@ int byteSwap(int x, int n, int m) {
  *   Max ops: 30
  *   Difficulty: 3
  */
+ // 1010 0111 
 unsigned reverse(unsigned v) {
-    return 2;
+    unsigned result = 0;
+    unsigned sign = 0xFFFFFFFF;
+    while(sign){
+        result = result << 1;
+        result|=(v&0x1);
+        v = v >> 1;
+        sign = sign>>1;
+    }
+    return result;
 }
 
 /*
@@ -103,7 +145,10 @@ unsigned reverse(unsigned v) {
  *   Difficulty: 3
  */
 int logicalShift(int x, int n) {
-    return 2;
+    // 0x87654321, 4 -> 0xF8765432
+    int i = 0x80000000;
+    int mask = (i >> n) << 1;
+    return (~mask) & (x>>n);
 }
 
 /*
