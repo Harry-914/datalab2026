@@ -160,7 +160,29 @@ int logicalShift(int x, int n) {
  *   Difficulty: 4
  */
 int leftBitCount(int x) {
-    return 2;
+    int fx = ~x; // 取反，问题等价于左边连续的0 x=0x7FFFFFFF -> 0x80000000
+    int shift, result = 0;
+    shift = !!(fx >> 16) << 4; // 10000
+    fx = fx >> shift; // 0x00008000
+    result |= shift; // 10000
+
+    shift = !!(fx >> 8) << 3; // 1000
+    fx = fx >> shift; // 0x00000080
+    result |= shift; // 11000
+
+    shift = !!(fx >> 4) << 2; // 100
+    fx = fx >> shift; // 0x00000008
+    result |= shift; // 11100
+
+    shift = !!(fx >> 2) << 1; // 10
+    fx = fx >> shift; // 0x00000002
+    result |= shift; // 11110
+
+    result |= !!(fx >> 1); // 11111
+
+    return 32 + ((~result) & ((!!(~x) << 31) >> 31)); 
+    // if (x == 0xFFFFFFFF) return 32    ~x=0
+    // else return 32-result
 }
 
 /*
@@ -172,7 +194,39 @@ int leftBitCount(int x) {
  *   Difficulty: 4
  */
 unsigned float_i2f(int x) {
-    return 2;
+    unsigned ux = x, s, e, m, lost, half;
+    int pos = 0;
+
+    // 0 -> 0.0
+    if(!x) return 0;
+
+    s = ux & 0x80000000;
+    if(s) ux = ~ux + 1; // 溢出！
+
+    while((ux >> pos) > 1) pos += 1;
+
+    e = pos + 127;
+
+    if(pos < 24) m = ux << (23 - pos);
+    else{
+        // 有效数字超过24位，舍入 丢弃低位
+        int r = pos - 23;
+        m = ux >> r;
+
+        lost = ux&((1u<<r)-1u);
+
+        half = 1u<<(r-1);
+
+        if(lost>half) m=m+1;
+        else if (lost==half){
+            if(m&0x1) m=m+1;
+        }
+
+        // 舍入1.1111... 
+        e = e + (m>>24);
+    }
+
+    return s | (e <<23) |(m & 0x7FFFFF);
 }
 
 /*
@@ -187,7 +241,31 @@ unsigned float_i2f(int x) {
  *   Difficulty: 4
  */
 unsigned floatScale2(unsigned uf) {
-    return 2;
+    // uf = 0x7f800000  = 0|111 1111 1|000 0000 0000 0000 0000 0000
+    // should get       = 0|111 
+    // but get          = 
+
+    unsigned sign = uf & 0x80000000;
+    unsigned exp = uf & 0x7F800000;
+    unsigned frac = uf & 0x007FFFFF;
+
+    // NaN + 无穷
+    if(exp==0x7F800000){
+        return uf;
+    }
+
+    // 非规格化
+    if(exp==0x0){
+        return sign | (frac << 1);
+    }
+
+    exp = exp + 0x00800000;
+
+    // 无穷
+    if(exp==0x7F800000) frac = 0;
+
+    return sign|exp|frac;
+
 }
 
 /*
@@ -204,7 +282,24 @@ unsigned floatScale2(unsigned uf) {
  *   Difficulty: 3
  */
 int float64_f2i(unsigned uf1, unsigned uf2) {
-    return 2;
+    unsigned sign = uf2 >> 31;
+    unsigned exp = (uf2 >> 20) & 0x7FF;
+    unsigned fracHigh = uf2 & 0xFFFFF;
+    unsigned fracLow = uf1;
+    unsigned result;
+    int e = exp - 1023;
+    
+    if(!(exp - 0x7FF)) return 0x80000000;
+
+    if(e < 0)  return 0;
+
+    if(e>=31) return 0x80000000;
+
+    if(e <= 20) result = (1 << e) | (fracHigh >> (20-e));
+    else result = (1 << e) | (fracHigh << (e-20) | (fracLow >> (52-e))); // 52=20+32
+    
+    if(sign) return -result;
+    else return result;
 }
 
 /*
@@ -221,5 +316,22 @@ int float64_f2i(unsigned uf1, unsigned uf2) {
  *   Difficulty: 4
  */
 unsigned floatPower2(int x) {
-    return 2;
+    // x = 0x7fffffff = 0111 1111 1111 1111 1111 1111 1111 1111
+    // should get     = 0111 1111 1000 0000 0000 0000 0000 0000
+    // but get        = 1000 0000 0000 0000 0000 0000 0000 0000
+    int exp;
+    unsigned frac = 0;
+
+    if(x <= -127){
+        if(x<-149) return 0;
+        frac = 0x1 << (23-(1-(127+x)));
+        return frac;
+    }
+
+    if(x >= 128){
+        return 0x7F800000;
+    }
+
+    exp=x+127;
+    return ( exp<<23 );
 }
