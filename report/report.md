@@ -27,9 +27,9 @@ test 截图：
 ```
 
 使用德摩根律，
-$$
+```math
 x \& y = \sim(\sim x \mid \sim y)
-$$
+```
 
 ### bitXor
 
