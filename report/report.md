@@ -40,8 +40,7 @@ $$
 使用异或的等价形式和德摩根律
 
 $$
-A \oplus B
-=
+A \oplus B=
 \neg(A\land B)\land\neg(\neg A\land\neg B)
 $$
 
