@@ -72,7 +72,6 @@ int logtwo(int v) {
     v = v >> shift;
     result |= shift;
 
-
     shift = (v > 0xFF) << 3;
     v = v >> shift;
     result |= shift;
@@ -100,19 +99,15 @@ int logtwo(int v) {
  *    Difficulty: 2
  */
 int byteSwap(int x, int n, int m) {
-    int ns = n << 3; // 
+    int ns = n << 3;
     int ms = m << 3;
 
-    int nb = (x >> ns) & 0xFF; //0x56
-    int mb = (x >> ms) & 0xFF; //0x12
+    int nb = (x >> ns) & 0xFF; 
+    int mb = (x >> ms) & 0xFF; 
 
-    int tmp = (nb <<ms)|(mb << ns); //0x56001200 x=0x12345678
+    int mask = ~((0xFF << ns) | (0xFF << ms));
 
-    int nb2 = ~(0xFF << ns); //0xFFFF00FF 
-    int mb2 = ~(0xFF << ms); //0x00FFFFFF
-    int bit = nb2 & mb2; //0x00FF00FF
-
-    return tmp|(x&bit);
+    return (x & mask) | (nb << ms) | (mb << ns);
 }
 
 /*
@@ -123,15 +118,14 @@ int byteSwap(int x, int n, int m) {
  *   Max ops: 30
  *   Difficulty: 3
  */
- // 1010 0111 
 unsigned reverse(unsigned v) {
     unsigned result = 0;
-    unsigned sign = 0xFFFFFFFF;
-    while(sign){
+    unsigned counter = 0xFFFFFFFF;
+    while(counter){
         result = result << 1;
         result|=(v&0x1);
         v = v >> 1;
-        sign = sign>>1;
+        counter = counter>>1;
     }
     return result;
 }
@@ -145,7 +139,6 @@ unsigned reverse(unsigned v) {
  *   Difficulty: 3
  */
 int logicalShift(int x, int n) {
-    // 0x87654321, 4 -> 0xF8765432
     int i = 0x80000000;
     int mask = (i >> n) << 1;
     return (~mask) & (x>>n);
@@ -160,29 +153,27 @@ int logicalShift(int x, int n) {
  *   Difficulty: 4
  */
 int leftBitCount(int x) {
-    int fx = ~x; // 取反，问题等价于左边连续的0 x=0x7FFFFFFF -> 0x80000000
+    int fx = ~x; 
     int shift, result = 0;
-    shift = !!(fx >> 16) << 4; // 10000
-    fx = fx >> shift; // 0x00008000
-    result |= shift; // 10000
+    shift = !!(fx >> 16) << 4;
+    fx = fx >> shift;
+    result |= shift; 
 
-    shift = !!(fx >> 8) << 3; // 1000
-    fx = fx >> shift; // 0x00000080
-    result |= shift; // 11000
+    shift = !!(fx >> 8) << 3; 
+    fx = fx >> shift; 
+    result |= shift;
 
-    shift = !!(fx >> 4) << 2; // 100
-    fx = fx >> shift; // 0x00000008
-    result |= shift; // 11100
+    shift = !!(fx >> 4) << 2; 
+    fx = fx >> shift; 
+    result |= shift;
 
-    shift = !!(fx >> 2) << 1; // 10
-    fx = fx >> shift; // 0x00000002
-    result |= shift; // 11110
+    shift = !!(fx >> 2) << 1; 
+    fx = fx >> shift; 
+    result |= shift; 
 
-    result |= !!(fx >> 1); // 11111
+    result |= !!(fx >> 1);
 
-    return 32 + ((~result) & ((!!(~x) << 31) >> 31)); 
-    // if (x == 0xFFFFFFFF) return 32    ~x=0
-    // else return 32-result
+    return 32 + ~result + !~x;
 }
 
 /*
@@ -194,39 +185,48 @@ int leftBitCount(int x) {
  *   Difficulty: 4
  */
 unsigned float_i2f(int x) {
-    unsigned ux = x, s, e, m, lost, half;
+    unsigned ux = x, sign, exp, frac;
     int pos = 0;
 
     // 0 -> 0.0
     if(!x) return 0;
 
-    s = ux & 0x80000000;
-    if(s) ux = ~ux + 1; // 溢出！
+    sign = ux & 0x80000000;
+    if(sign) ux = ~ux + 1; // 负数取绝对值
 
+    // 找到最高位1的位置
     while((ux >> pos) > 1) pos += 1;
 
-    e = pos + 127;
+    exp = pos + 127;
 
-    if(pos < 24) m = ux << (23 - pos);
+    if(pos <= 23) {
+        // 有效数字不超过24位，不需要舍入
+        frac = ux << (23 - pos);
+    }
     else{
-        // 有效数字超过24位，舍入 丢弃低位
-        int r = pos - 23;
-        m = ux >> r;
+        // 有效数字超过24位，舍入
+        int shift = pos - 23;
+        unsigned half, lost;
+        // 保留最高24位
+        frac = ux >> shift;
 
-        lost = ux&((1u<<r)-1u);
+        // 丢弃低shift位
+        lost = ux&((1u<<shift)-1u);
 
-        half = 1u<<(r-1);
+        // 被丢弃部分恰好为一半时的值
+        half = 1u<<(shift-1);
 
-        if(lost>half) m=m+1;
+        // 舍入
+        if(lost>half) frac+=1;
         else if (lost==half){
-            if(m&0x1) m=m+1;
+            if(frac&0x1) frac+=1;
         }
 
-        // 舍入1.1111... 
-        e = e + (m>>24);
+        // 如果舍入导致1.1111...->10.00... 
+        exp = exp + (frac>>24);
     }
 
-    return s | (e <<23) |(m & 0x7FFFFF);
+    return sign | (exp <<23) |(frac & 0x7FFFFF);
 }
 
 /*
@@ -241,15 +241,12 @@ unsigned float_i2f(int x) {
  *   Difficulty: 4
  */
 unsigned floatScale2(unsigned uf) {
-    // uf = 0x7f800000  = 0|111 1111 1|000 0000 0000 0000 0000 0000
-    // should get       = 0|111 
-    // but get          = 
 
     unsigned sign = uf & 0x80000000;
     unsigned exp = uf & 0x7F800000;
     unsigned frac = uf & 0x007FFFFF;
 
-    // NaN + 无穷
+    // NaN + 无穷，直接返回
     if(exp==0x7F800000){
         return uf;
     }
@@ -259,13 +256,13 @@ unsigned floatScale2(unsigned uf) {
         return sign | (frac << 1);
     }
 
+    // 规格化
     exp = exp + 0x00800000;
 
     // 无穷
     if(exp==0x7F800000) frac = 0;
 
     return sign|exp|frac;
-
 }
 
 /*
@@ -289,14 +286,17 @@ int float64_f2i(unsigned uf1, unsigned uf2) {
     unsigned result;
     int e = exp - 1023;
     
+    // NaN + 无穷
     if(!(exp - 0x7FF)) return 0x80000000;
 
+    // 指数小于0，返回0
     if(e < 0)  return 0;
 
+    // 指数大于等于31，返回0x80000000
     if(e>=31) return 0x80000000;
 
-    if(e <= 20) result = (1 << e) | (fracHigh >> (20-e));
-    else result = (1 << e) | (fracHigh << (e-20) | (fracLow >> (52-e))); // 52=20+32
+    if(e <= 20) result = (1 << e) | (fracHigh >> (20-e)); // 整数部分在fracHigh
+    else result = (1 << e) | (fracHigh << (e-20) | (fracLow >> (32+20-e))); 
     
     if(sign) return -result;
     else return result;
@@ -316,19 +316,16 @@ int float64_f2i(unsigned uf1, unsigned uf2) {
  *   Difficulty: 4
  */
 unsigned floatPower2(int x) {
-    // x = 0x7fffffff = 0111 1111 1111 1111 1111 1111 1111 1111
-    // should get     = 0111 1111 1000 0000 0000 0000 0000 0000
-    // but get        = 1000 0000 0000 0000 0000 0000 0000 0000
     int exp;
     unsigned frac = 0;
 
     if(x <= -127){
         if(x<-149) return 0;
-        frac = 0x1 << (23-(1-(127+x)));
+        frac = 0x1 << (149+x);
         return frac;
     }
 
-    if(x >= 128){
+    if(x > 127){
         return 0x7F800000;
     }
 
